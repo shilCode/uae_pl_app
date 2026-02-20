@@ -1,0 +1,20 @@
+{
+  "name": "uae_pl_app",
+  "version": "1.0.0",
+  "description": "Polish Consulate (Abu Dhabi) Appointment Checker",
+  "main": "index.js",
+  "scripts": {
+    "check": "npx playwright test appointment-checker --project=appointment-checker --grep 'Polish Consulate Appointment Checker' --headed",
+    "check:once": "npx playwright test appointment-checker --project=appointment-checker --grep 'Single appointment check' --headed",
+    "report": "npx playwright show-report"
+  },
+  "keywords": [],
+  "author": "",
+  "license": "ISC",
+  "type": "commonjs",
+  "devDependencies": {
+    "@playwright/test": "^1.58.1",
+    "@types/node": "^25.2.0",
+    "dotenv": "^16.6.1"
+  }
+}
