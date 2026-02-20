@@ -9,3 +9,4 @@ node_modules/
 /screenshots
 *captcha-sample*.png*
 *captcha.png*
+/logs

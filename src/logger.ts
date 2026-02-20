@@ -1,5 +1,22 @@
+import fs from 'fs';
+import path from 'path';
+
+// Create logs directory and log file on startup
+const logsDir = path.resolve('logs');
+if (!fs.existsSync(logsDir)) fs.mkdirSync(logsDir, { recursive: true });
+
+const timestamp = new Date().toISOString().replace(/[:.]/g, '-').substring(0, 19);
+const logFilePath = path.join(logsDir, `run-${timestamp}.log`);
+const logStream = fs.createWriteStream(logFilePath, { flags: 'a' });
+
+console.log(`📝 Logging to: ${logFilePath}`);
+
+function writeToFile(message: string): void {
+  logStream.write(message + '\n');
+}
+
 /**
- * Simple timestamped logger
+ * Simple timestamped logger — writes to both console and log file
  */
 export function log(message: string): void {
   const now = new Date().toLocaleString('en-GB', {
@@ -11,7 +28,9 @@ export function log(message: string): void {
     minute: '2-digit',
     second: '2-digit',
   });
-  console.log(`[${now}] ${message}`);
+  const line = `[${now}] ${message}`;
+  console.log(line);
+  writeToFile(line);
 }
 
 export function logSuccess(message: string): void {
@@ -31,5 +50,7 @@ export function logWarn(message: string): void {
 }
 
 export function logSeparator(): void {
-  console.log('═'.repeat(60));
+  const line = '═'.repeat(60);
+  console.log(line);
+  writeToFile(line);
 }
