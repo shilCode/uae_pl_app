@@ -4,7 +4,7 @@
   "description": "Polish Consulate (Abu Dhabi) Appointment Checker",
   "main": "index.js",
   "scripts": {
-    "check": "npx playwright test appointment-checker --project=appointment-checker --grep 'Polish Consulate Appointment Checker' --headed",
+    "check": "npx playwright test appointment-checker --project=appointment-checker --headed",
     "check:once": "npx playwright test appointment-checker --project=appointment-checker --grep 'Single appointment check' --headed",
     "captcha:debug": "npx playwright test appointment-checker --project=appointment-checker --grep 'CAPTCHA solver debug' --headed",
     "report": "npx playwright show-report"
