@@ -1,29 +1,50 @@
-import { test, Page, Browser, BrowserContext, expect } from '@playwright/test';
-import { sendDesktopNotification, notifyAll, playAlertSound, speakMessage } from '../src/notify';
-import { log, logSuccess, logError, logInfo, logWarn, logSeparator } from '../src/logger';
-import { solveCaptcha } from '../src/captcha-solver';
-import Tesseract from 'tesseract.js';
-import sharp from 'sharp';
-import path from 'path';
-import fs from 'fs';
-import * as dotenv from 'dotenv';
+import { test, Page, Browser, BrowserContext, expect } from "@playwright/test";
+import {
+  sendDesktopNotification,
+  notifyAll,
+  playAlertSound,
+  speakMessage,
+} from "../src/notify";
+import {
+  log,
+  logSuccess,
+  logError,
+  logInfo,
+  logWarn,
+  logSeparator,
+} from "../src/logger";
+import { solveCaptcha } from "../src/captcha-solver";
+import Tesseract from "tesseract.js";
+import sharp from "sharp";
+import path from "path";
+import fs from "fs";
+import * as dotenv from "dotenv";
 
 dotenv.config();
 
 const CONSULATE_URL =
   process.env.CONSULATE_URL ||
-  'https://secure.e-konsulat.gov.pl/placowki/200/wiza-krajowa/wizyty/weryfikacja-obrazkowa';
+  "https://secure.e-konsulat.gov.pl/placowki/200/wiza-krajowa/wizyty/weryfikacja-obrazkowa";
 
-const POLL_INTERVAL_MS = parseInt(process.env.POLL_INTERVAL_MS || '60000', 10);
-const MAX_RETRIES = parseInt(process.env.MAX_RETRIES || '500', 10);
+const POLL_INTERVAL_MS = parseInt(process.env.POLL_INTERVAL_MS || "60000", 10);
+const MAX_RETRIES = parseInt(process.env.MAX_RETRIES || "500", 10);
 
 // ── Form selections (configurable via .env) ──
-const SERVICE_TYPE = process.env.SERVICE_TYPE || 'Wiza krajowa';
-const LOCATION = process.env.LOCATION || 'Abu Zabi';
-const NUM_PEOPLE = process.env.NUM_PEOPLE || '1 osob';
+const SERVICE_TYPE = process.env.SERVICE_TYPE || "Wiza krajowa";
+const LOCATION = process.env.LOCATION || "Abu Zabi";
+const NUM_PEOPLE = process.env.NUM_PEOPLE || "1 osob";
 
 // Max OCR attempts before falling back to manual CAPTCHA
-const MAX_CAPTCHA_ATTEMPTS = parseInt(process.env.MAX_CAPTCHA_ATTEMPTS || '3', 10);
+const MAX_CAPTCHA_ATTEMPTS = parseInt(
+  process.env.MAX_CAPTCHA_ATTEMPTS || "3",
+  10,
+);
+
+// Max time (ms) to spend on CAPTCHA before giving up and retrying the whole flow
+const CAPTCHA_TIMEOUT_MS = parseInt(
+  process.env.CAPTCHA_TIMEOUT_MS || "60000",
+  10,
+);
 
 // ─────────────────────────────────────────────────────
 // Helper: wait for a duration
@@ -36,9 +57,9 @@ function sleep(ms: number): Promise<void> {
 // Step 1: Navigate to CAPTCHA page
 // ─────────────────────────────────────────────────────
 async function navigateToCaptchaPage(page: Page): Promise<void> {
-  logInfo('Navigating to captcha page...');
-  await page.goto(CONSULATE_URL, { waitUntil: 'networkidle', timeout: 30000 });
-  logSuccess('Captcha page loaded');
+  logInfo("Navigating to captcha page...");
+  await page.goto(CONSULATE_URL, { waitUntil: "networkidle", timeout: 30000 });
+  logSuccess("Captcha page loaded");
 }
 
 // ─────────────────────────────────────────────────────
@@ -50,8 +71,10 @@ async function autoSolveCaptcha(page: Page): Promise<boolean> {
 
     try {
       // Wait for the CAPTCHA image to load
-      const captchaImg = page.getByRole('img', { name: 'Weryfikacja obrazkowa' });
-      await captchaImg.waitFor({ state: 'visible', timeout: 10000 });
+      const captchaImg = page.getByRole("img", {
+        name: "Weryfikacja obrazkowa",
+      });
+      await captchaImg.waitFor({ state: "visible", timeout: 10000 });
       await sleep(1000); // Ensure image is fully rendered
 
       // Take a screenshot of the CAPTCHA image
@@ -61,9 +84,11 @@ async function autoSolveCaptcha(page: Page): Promise<boolean> {
       const captchaText = await solveCaptcha(imageBuffer);
 
       if (!captchaText || captchaText.length < 3) {
-        logWarn(`OCR returned too short result: "${captchaText}", refreshing...`);
+        logWarn(
+          `OCR returned too short result: "${captchaText}", refreshing...`,
+        );
         // Click refresh to get a new CAPTCHA
-        await page.getByRole('button', { name: 'Odśwież' }).click();
+        await page.getByRole("button", { name: "Odśwież" }).click();
         await sleep(2000);
         continue;
       }
@@ -71,16 +96,19 @@ async function autoSolveCaptcha(page: Page): Promise<boolean> {
       logInfo(`OCR result: "${captchaText}" — submitting...`);
 
       // Type the CAPTCHA text
-      const textbox = page.getByRole('textbox', { name: /znaki/i });
+      const textbox = page.getByRole("textbox", { name: /znaki/i });
       await textbox.fill(captchaText);
       await sleep(300);
 
       // Click "Dalej"
-      await page.getByRole('button', { name: 'Dalej' }).click();
+      await page.getByRole("button", { name: "Dalej" }).click();
       await sleep(2000);
 
       // Check if we passed the CAPTCHA (booking form appears)
-      const formVisible = await page.locator('text=Rodzaj usługi').isVisible().catch(() => false);
+      const formVisible = await page
+        .locator("text=Rodzaj usługi")
+        .isVisible()
+        .catch(() => false);
 
       if (formVisible) {
         logSuccess(`CAPTCHA solved automatically! ("${captchaText}")`);
@@ -88,11 +116,13 @@ async function autoSolveCaptcha(page: Page): Promise<boolean> {
       }
 
       // Check if CAPTCHA is still visible (means we failed)
-      const captchaStillVisible = await captchaImg.isVisible().catch(() => false);
+      const captchaStillVisible = await captchaImg
+        .isVisible()
+        .catch(() => false);
       if (captchaStillVisible) {
         logWarn(`CAPTCHA answer "${captchaText}" was incorrect, refreshing...`);
         // The CAPTCHA may auto-refresh on failure, or we click Odśwież
-        const refreshBtn = page.getByRole('button', { name: 'Odśwież' });
+        const refreshBtn = page.getByRole("button", { name: "Odśwież" });
         if (await refreshBtn.isVisible()) {
           await refreshBtn.click();
           await sleep(2000);
@@ -101,7 +131,7 @@ async function autoSolveCaptcha(page: Page): Promise<boolean> {
       }
 
       // If neither form nor captcha is visible, something unexpected happened
-      logSuccess('CAPTCHA appears to be solved (page changed)');
+      logSuccess("CAPTCHA appears to be solved (page changed)");
       return true;
     } catch (error: any) {
       logWarn(`OCR attempt ${attempt} failed: ${error.message}`);
@@ -115,64 +145,88 @@ async function autoSolveCaptcha(page: Page): Promise<boolean> {
 // Step 2b: Manual CAPTCHA fallback
 // ─────────────────────────────────────────────────────
 async function waitForManualCaptcha(page: Page): Promise<void> {
-  logInfo('⏳ Auto-solve failed — please solve the CAPTCHA manually in the browser window');
-  sendDesktopNotification('CAPTCHA Required', 'Auto-solve failed. Please solve the CAPTCHA manually.');
+  logInfo(
+    "⏳ Auto-solve failed — please solve the CAPTCHA manually in the browser window",
+  );
+  sendDesktopNotification(
+    "CAPTCHA Required",
+    "Auto-solve failed. Please solve the CAPTCHA manually.",
+  );
   playAlertSound(3);
 
   // Wait for the CAPTCHA textbox to be visible
-  const textbox = page.getByRole('textbox', { name: /znaki/i });
-  await textbox.waitFor({ state: 'visible', timeout: 300000 });
+  const textbox = page.getByRole("textbox", { name: /znaki/i });
+  await textbox.waitFor({ state: "visible", timeout: 300000 });
 
   logInfo('Waiting for you to type the CAPTCHA and click "Dalej"...');
 
   // Wait until we see the booking form
-  await page.locator('text=Rodzaj usługi').waitFor({ state: 'visible', timeout: 300000 });
+  await page
+    .locator("text=Rodzaj usługi")
+    .waitFor({ state: "visible", timeout: 300000 });
 
-  logSuccess('CAPTCHA solved manually! Booking form loaded.');
+  logSuccess("CAPTCHA solved manually! Booking form loaded.");
 }
 
 // ─────────────────────────────────────────────────────
-// Step 2: Solve CAPTCHA (auto → manual fallback)
+// Step 2: Solve CAPTCHA (auto → manual fallback + timeout)
 // ─────────────────────────────────────────────────────
 async function solveCaptchaStep(page: Page): Promise<void> {
-  const autoSolved = await autoSolveCaptcha(page);
+  const timeoutPromise = new Promise<never>((_, reject) =>
+    setTimeout(
+      () =>
+        reject(
+          new Error(
+            `CAPTCHA solving timed out after ${CAPTCHA_TIMEOUT_MS / 1000}s — will retry`,
+          ),
+        ),
+      CAPTCHA_TIMEOUT_MS,
+    ),
+  );
 
-  if (!autoSolved) {
-    await waitForManualCaptcha(page);
-  }
+  // Race the actual solve logic against the timeout
+  await Promise.race([
+    (async () => {
+      const autoSolved = await autoSolveCaptcha(page);
+      if (!autoSolved) {
+        await waitForManualCaptcha(page);
+      }
+    })(),
+    timeoutPromise,
+  ]);
 }
 
 // ─────────────────────────────────────────────────────
 // Step 3: Fill out the booking form
 // ─────────────────────────────────────────────────────
 async function fillBookingForm(page: Page): Promise<void> {
-  logInfo('Filling booking form...');
+  logInfo("Filling booking form...");
   logInfo(`  Service type: ${SERVICE_TYPE}`);
   logInfo(`  Location: ${LOCATION}`);
   logInfo(`  People: ${NUM_PEOPLE}`);
 
   // ── Select "Rodzaj usługi" (Service type) ──
   // Find the combobox near "Rodzaj usługi" label
-  const serviceDropdown = page.locator('mat-select').first();
+  const serviceDropdown = page.locator("mat-select").first();
   await serviceDropdown.click();
   await sleep(500);
-  await page.getByRole('option', { name: SERVICE_TYPE, exact: true }).click();
+  await page.getByRole("option", { name: SERVICE_TYPE, exact: true }).click();
   await sleep(500);
   logSuccess(`Selected service: ${SERVICE_TYPE}`);
 
   // ── Select "Lokalizacja" (Location) ──
-  const locationDropdown = page.locator('mat-select').nth(1);
+  const locationDropdown = page.locator("mat-select").nth(1);
   await locationDropdown.click();
   await sleep(500);
-  await page.getByRole('option', { name: LOCATION }).click();
+  await page.getByRole("option", { name: LOCATION }).click();
   await sleep(500);
   logSuccess(`Selected location: ${LOCATION}`);
 
   // ── Select "Chcę zarezerwować termin dla" (Number of people) ──
-  const peopleDropdown = page.locator('mat-select').nth(2);
+  const peopleDropdown = page.locator("mat-select").nth(2);
   await peopleDropdown.click();
   await sleep(500);
-  await page.getByRole('option', { name: NUM_PEOPLE }).click();
+  await page.getByRole("option", { name: NUM_PEOPLE }).click();
   await sleep(1000); // Wait for the page to process and show result
   logSuccess(`Selected people: ${NUM_PEOPLE}`);
 }
@@ -184,68 +238,80 @@ async function checkForAppointments(page: Page): Promise<{
   available: boolean;
   message: string;
 }> {
-  logInfo('Checking for available appointment slots...');
+  logInfo("Checking for available appointment slots...");
 
   // Wait a moment for the page to update after form selections
   await sleep(2000);
 
   // Get the full page text to analyze
-  const pageText = await page.textContent('body') || '';
+  const pageText = (await page.textContent("body")) || "";
 
   // ── Check for the known "no slots" message ──
   const noSlotsPatterns = [
-    /wszystkie udostępnione terminy zostały zarezerwowane/i,  // "all available dates have been booked"
-    /brak wolnych termin/i,       // "no free dates"
-    /brak dostępnych termin/i,    // "no available dates"
-    /brak miejsc/i,               // "no places"
-    /nie ma wolnych/i,            // "there are no free"
-    /brak terminów/i,             // "no dates"
-    /aktualnie brak/i,            // "currently none"
-    /prosimy spróbować/i,         // "please try later"
+    /wszystkie udostępnione terminy zostały zarezerwowane/i, // "all available dates have been booked"
+    /brak wolnych termin/i, // "no free dates"
+    /brak dostępnych termin/i, // "no available dates"
+    /brak miejsc/i, // "no places"
+    /nie ma wolnych/i, // "there are no free"
+    /brak terminów/i, // "no dates"
+    /aktualnie brak/i, // "currently none"
+    /prosimy spróbować/i, // "please try later"
   ];
 
-  const noSlotsFound = noSlotsPatterns.some((pattern) => pattern.test(pageText));
+  const noSlotsFound = noSlotsPatterns.some((pattern) =>
+    pattern.test(pageText),
+  );
 
   // ── Check if Termin dropdown is available (has options) ──
   // When slots are available, the Termin dropdown should appear with date options
-  const terminDropdownVisible = await page.locator('mat-select').nth(3).isVisible().catch(() => false);
-  const dalekButtonVisible = await page.getByRole('button', { name: 'Dalej' }).isVisible().catch(() => false);
+  const terminDropdownVisible = await page
+    .locator("mat-select")
+    .nth(3)
+    .isVisible()
+    .catch(() => false);
+  const dalekButtonVisible = await page
+    .getByRole("button", { name: "Dalej" })
+    .isVisible()
+    .catch(() => false);
 
   // Check if the form fields got disabled (they do when no slots)
-  const serviceDisabled = await page.locator('mat-select').first().getAttribute('aria-disabled') === 'true';
+  const serviceDisabled =
+    (await page.locator("mat-select").first().getAttribute("aria-disabled")) ===
+    "true";
 
   if (noSlotsFound) {
     return {
       available: false,
-      message: 'No appointments available — all slots are booked',
+      message: "No appointments available — all slots are booked",
     };
   }
 
   if (serviceDisabled && !terminDropdownVisible) {
     return {
       available: false,
-      message: 'No appointments available — form fields disabled, no date picker shown',
+      message:
+        "No appointments available — form fields disabled, no date picker shown",
     };
   }
 
   if (terminDropdownVisible || dalekButtonVisible) {
     // Try to get the Termin options
-    let terminOptions = '';
+    let terminOptions = "";
     try {
-      const terminDropdown = page.locator('mat-select').nth(3);
+      const terminDropdown = page.locator("mat-select").nth(3);
       await terminDropdown.click();
       await sleep(500);
-      const options = page.getByRole('option');
+      const options = page.getByRole("option");
       const count = await options.count();
       const optionTexts: string[] = [];
       for (let i = 0; i < count; i++) {
-        optionTexts.push(await options.nth(i).textContent() || '');
+        optionTexts.push((await options.nth(i).textContent()) || "");
       }
-      terminOptions = optionTexts.join(', ');
+      terminOptions = optionTexts.join(", ");
       // Press Escape to close the dropdown without selecting
-      await page.keyboard.press('Escape');
+      await page.keyboard.press("Escape");
     } catch {
-      terminOptions = '(could not read options)';
+      terminOptions = "(could not read options)";
     }
 
     return {
@@ -264,9 +330,12 @@ async function checkForAppointments(page: Page): Promise<{
 // ─────────────────────────────────────────────────────
 // Step 5: Alert user when appointment is found
 // ─────────────────────────────────────────────────────
-async function alertAppointmentFound(page: Page, message: string): Promise<void> {
+async function alertAppointmentFound(
+  page: Page,
+  message: string,
+): Promise<void> {
   logSeparator();
-  logSuccess('🎉🎉🎉 APPOINTMENT SLOT FOUND! 🎉🎉🎉');
+  logSuccess("🎉🎉🎉 APPOINTMENT SLOT FOUND! 🎉🎉🎉");
   logSuccess(message);
   logSuccess(`Page URL: ${page.url()}`);
   logSeparator();
@@ -278,12 +347,14 @@ async function alertAppointmentFound(page: Page, message: string): Promise<void>
 
   // Send notifications (desktop + Telegram)
   await notifyAll(
-    '🎉 APPOINTMENT AVAILABLE!',
-    `An appointment slot is available on the Polish consulate website!\n\n${message}\n\nGo book it NOW!`
+    "🎉 APPOINTMENT AVAILABLE!",
+    `An appointment slot is available on the Polish consulate website!\n\n${message}\n\nGo book it NOW!`,
   );
 
   // Speak the alert
-  speakMessage('Appointment available! Go to the browser now and book your appointment!');
+  speakMessage(
+    "Appointment available! Go to the browser now and book your appointment!",
+  );
 
   // Play alert sounds
   playAlertSound(10);
@@ -324,12 +395,14 @@ async function pollForAppointments(browser: Browser): Promise<void> {
         await alertAppointmentFound(page, result.message);
 
         // PAUSE here so the user can manually book
-        logInfo('Browser is paused — book your appointment now!');
-        logInfo('Press "Resume" in Playwright Inspector to continue polling, or close to stop.');
+        logInfo("Browser is paused — book your appointment now!");
+        logInfo(
+          'Press "Resume" in Playwright Inspector to continue polling, or close to stop.',
+        );
         await page.pause();
 
         // After pause, close this context and continue polling
-        logInfo('Resuming polling...');
+        logInfo("Resuming polling...");
         await context.close();
         context = null;
         page = null;
@@ -337,7 +410,7 @@ async function pollForAppointments(browser: Browser): Promise<void> {
         logWarn(result.message);
 
         // Close the browser page/context immediately
-        logInfo('Closing browser...');
+        logInfo("Closing browser...");
         await context.close();
         context = null;
         page = null;
@@ -364,15 +437,20 @@ async function pollForAppointments(browser: Browser): Promise<void> {
 // ==============================================
 // MAIN TEST - CONTINUOUS APPOINTMENT CHECKER
 // ==============================================
-test('Polish Consulate Appointment Checker', async ({ browser }) => {
+test("Polish Consulate Appointment Checker", async ({ browser }) => {
   test.setTimeout(0); // No timeout — runs indefinitely
 
   logSeparator();
-  logInfo('🇵🇱 Polish Consulate Appointment Checker');
+  logInfo("🇵🇱 Polish Consulate Appointment Checker");
   logInfo(`URL: ${CONSULATE_URL}`);
-  logInfo(`Service: ${SERVICE_TYPE} | Location: ${LOCATION} | People: ${NUM_PEOPLE}`);
-  logInfo(`Poll interval: ${POLL_INTERVAL_MS / 1000}s | Max retries: ${MAX_RETRIES}`);
-  logInfo('Browser will close between checks to save resources');
+  logInfo(
+    `Service: ${SERVICE_TYPE} | Location: ${LOCATION} | People: ${NUM_PEOPLE}`,
+  );
+  logInfo(
+    `Poll interval: ${POLL_INTERVAL_MS / 1000}s | Max retries: ${MAX_RETRIES}`,
+  );
+  logInfo(`CAPTCHA timeout: ${CAPTCHA_TIMEOUT_MS / 1000}s`);
+  logInfo("Browser will close between checks to save resources");
   logSeparator();
 
   await pollForAppointments(browser);
@@ -381,12 +459,14 @@ test('Polish Consulate Appointment Checker', async ({ browser }) => {
 // ==============================================
 // ONE-SHOT CHECK (manual captcha, single check)
 // ==============================================
-test('Single appointment check (manual CAPTCHA)', async ({ page }) => {
+test("Single appointment check (manual CAPTCHA)", async ({ page }) => {
   test.setTimeout(600000); // 10 min timeout
 
   logSeparator();
-  logInfo('🇵🇱 Single Appointment Check');
-  logInfo(`Service: ${SERVICE_TYPE} | Location: ${LOCATION} | People: ${NUM_PEOPLE}`);
+  logInfo("🇵🇱 Single Appointment Check");
+  logInfo(
+    `Service: ${SERVICE_TYPE} | Location: ${LOCATION} | People: ${NUM_PEOPLE}`,
+  );
   logSeparator();
 
   await navigateToCaptchaPage(page);
@@ -397,42 +477,53 @@ test('Single appointment check (manual CAPTCHA)', async ({ page }) => {
 
   if (result.available) {
     await alertAppointmentFound(page, result.message);
-    logInfo('Browser paused — book now!');
+    logInfo("Browser paused — book now!");
     await page.pause();
   } else {
     logWarn(result.message);
-    await page.screenshot({ path: `screenshots/no-appointment-${Date.now()}.png`, fullPage: true });
+    await page.screenshot({
+      path: `screenshots/no-appointment-${Date.now()}.png`,
+      fullPage: true,
+    });
   }
 });
 
 // ==============================================
 // CAPTCHA DEBUG TEST - solve & save screenshots
 // ==============================================
-test('CAPTCHA solver debug test', async ({ page }) => {
+test("CAPTCHA solver debug test", async ({ page }) => {
   test.setTimeout(120000); // 2 min timeout
 
-  const debugDir = path.resolve('screenshots/captcha-debug');
+  const debugDir = path.resolve("screenshots/captcha-debug");
   if (!fs.existsSync(debugDir)) fs.mkdirSync(debugDir, { recursive: true });
 
   const NUM_SAMPLES = 5;
   logSeparator();
-  logInfo(`🔍 CAPTCHA Debug: solving ${NUM_SAMPLES} CAPTCHAs and saving screenshots`);
+  logInfo(
+    `🔍 CAPTCHA Debug: solving ${NUM_SAMPLES} CAPTCHAs and saving screenshots`,
+  );
   logSeparator();
 
   for (let i = 1; i <= NUM_SAMPLES; i++) {
     logInfo(`\n--- Sample ${i}/${NUM_SAMPLES} ---`);
 
-    await page.goto(CONSULATE_URL, { waitUntil: 'networkidle', timeout: 30000 });
+    await page.goto(CONSULATE_URL, {
+      waitUntil: "networkidle",
+      timeout: 30000,
+    });
     await sleep(1000);
 
-    const captchaImg = page.getByRole('img', { name: 'Weryfikacja obrazkowa' });
-    await captchaImg.waitFor({ state: 'visible', timeout: 10000 });
+    const captchaImg = page.getByRole("img", { name: "Weryfikacja obrazkowa" });
+    await captchaImg.waitFor({ state: "visible", timeout: 10000 });
     await sleep(500);
 
     // Save the original CAPTCHA
     const originalBuffer = await captchaImg.screenshot();
     const ts = Date.now();
-    fs.writeFileSync(path.join(debugDir, `${i}-original-${ts}.png`), originalBuffer);
+    fs.writeFileSync(
+      path.join(debugDir, `${i}-original-${ts}.png`),
+      originalBuffer,
+    );
 
     // Run OCR with all strategies and save preprocessed images
     const strategies = [
@@ -443,11 +534,11 @@ test('CAPTCHA solver debug test', async ({ page }) => {
       { threshold: 140, negate: false },
     ];
 
-    logInfo('Strategy results:');
+    logInfo("Strategy results:");
     for (const strat of strategies) {
       let pipeline = sharp(originalBuffer)
         .grayscale()
-        .resize({ width: 400, fit: 'inside' })
+        .resize({ width: 400, fit: "inside" })
         .sharpen({ sigma: 2 })
         .normalize()
         .threshold(strat.threshold);
@@ -455,12 +546,21 @@ test('CAPTCHA solver debug test', async ({ page }) => {
       if (strat.negate) pipeline = pipeline.negate();
 
       const processed = await pipeline.toBuffer();
-      const label = `t${strat.threshold}${strat.negate ? '-neg' : ''}`;
-      fs.writeFileSync(path.join(debugDir, `${i}-${label}-${ts}.png`), processed);
+      const label = `t${strat.threshold}${strat.negate ? "-neg" : ""}`;
+      fs.writeFileSync(
+        path.join(debugDir, `${i}-${label}-${ts}.png`),
+        processed,
+      );
 
-      const result = await Tesseract.recognize(processed, 'eng');
-      const text = result.data.text.trim().replace(/\s+/g, '').replace(/[^\w#+\-]/g, '').substring(0, 6);
-      logInfo(`  ${label}: "${text}" (confidence: ${result.data.confidence.toFixed(1)}%)`);
+      const result = await Tesseract.recognize(processed, "eng");
+      const text = result.data.text
+        .trim()
+        .replace(/\s+/g, "")
+        .replace(/[^\w#+\-]/g, "")
+        .substring(0, 6);
+      logInfo(
+        `  ${label}: "${text}" (confidence: ${result.data.confidence.toFixed(1)}%)`,
+      );
     }
 
     // Also run the full solver
@@ -469,12 +569,14 @@ test('CAPTCHA solver debug test', async ({ page }) => {
 
     // Refresh for next sample
     if (i < NUM_SAMPLES) {
-      await page.getByRole('button', { name: 'Odśwież' }).click();
+      await page.getByRole("button", { name: "Odśwież" }).click();
       await sleep(2000);
     }
   }
 
   logSeparator();
-  logSuccess(`Done! Check screenshots/captcha-debug/ for ${NUM_SAMPLES} samples`);
+  logSuccess(
+    `Done! Check screenshots/captcha-debug/ for ${NUM_SAMPLES} samples`,
+  );
   logSeparator();
 });
