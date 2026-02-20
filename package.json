@@ -6,6 +6,7 @@
   "scripts": {
     "check": "npx playwright test appointment-checker --project=appointment-checker --grep 'Polish Consulate Appointment Checker' --headed",
     "check:once": "npx playwright test appointment-checker --project=appointment-checker --grep 'Single appointment check' --headed",
+    "captcha:debug": "npx playwright test appointment-checker --project=appointment-checker --grep 'CAPTCHA solver debug' --headed",
     "report": "npx playwright show-report"
   },
   "keywords": [],
@@ -16,5 +17,9 @@
     "@playwright/test": "^1.58.1",
     "@types/node": "^25.2.0",
     "dotenv": "^16.6.1"
+  },
+  "dependencies": {
+    "sharp": "^0.34.5",
+    "tesseract.js": "^7.0.0"
   }
 }
