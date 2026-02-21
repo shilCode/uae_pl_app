@@ -5,15 +5,22 @@ const TELEGRAM_BOT_TOKEN = process.env.TELEGRAM_BOT_TOKEN || '';
 const TELEGRAM_CHAT_ID = process.env.TELEGRAM_CHAT_ID || '';
 
 /**
- * Send a macOS desktop notification
+ * Send a desktop notification (cross-platform: Windows + macOS)
  */
 export function sendDesktopNotification(title: string, message: string): void {
   try {
-    const escapedTitle = title.replace(/"/g, '\\"');
-    const escapedMessage = message.replace(/"/g, '\\"');
-    execSync(
-      `osascript -e 'display notification "${escapedMessage}" with title "${escapedTitle}" sound name "Glass"'`
-    );
+    const escapedTitle = title.replace(/'/g, "''");
+    const escapedMessage = message.replace(/'/g, "''");
+    if (process.platform === 'win32') {
+      execSync(
+        `powershell -Command "[System.Reflection.Assembly]::LoadWithPartialName('System.Windows.Forms') | Out-Null; $notify = New-Object System.Windows.Forms.NotifyIcon; $notify.Icon = [System.Drawing.SystemIcons]::Information; $notify.Visible = $true; $notify.ShowBalloonTip(5000, '${escapedTitle}', '${escapedMessage}', 'Info'); Start-Sleep -Seconds 2; $notify.Dispose()"`,
+        { timeout: 10000 }
+      );
+    } else {
+      execSync(
+        `osascript -e 'display notification "${escapedMessage}" with title "${escapedTitle}" sound name "Glass"'`
+      );
+    }
     console.log(`🔔 Notification sent: ${title} - ${message}`);
   } catch (err) {
     console.error('Failed to send notification:', err);
@@ -74,12 +81,21 @@ export async function notifyAll(title: string, message: string): Promise<void> {
 }
 
 /**
- * Play an alert sound repeatedly to grab attention
+ * Play an alert sound repeatedly to grab attention (cross-platform)
  */
 export function playAlertSound(times: number = 5): void {
   try {
-    for (let i = 0; i < times; i++) {
-      execSync('afplay /System/Library/Sounds/Glass.aiff');
+    if (process.platform === 'win32') {
+      for (let i = 0; i < times; i++) {
+        execSync(
+          'powershell -Command "[System.Media.SystemSounds]::Exclamation.Play(); Start-Sleep -Milliseconds 600"',
+          { timeout: 5000 }
+        );
+      }
+    } else {
+      for (let i = 0; i < times; i++) {
+        execSync('afplay /System/Library/Sounds/Glass.aiff');
+      }
     }
   } catch (err) {
     console.error('Failed to play sound:', err);
@@ -87,12 +103,19 @@ export function playAlertSound(times: number = 5): void {
 }
 
 /**
- * Say a message using macOS text-to-speech
+ * Say a message using text-to-speech (cross-platform)
  */
 export function speakMessage(message: string): void {
   try {
-    const escaped = message.replace(/"/g, '\\"');
-    execSync(`say "${escaped}"`);
+    const escaped = message.replace(/'/g, "''");
+    if (process.platform === 'win32') {
+      execSync(
+        `powershell -Command "Add-Type -AssemblyName System.Speech; $s = New-Object System.Speech.Synthesis.SpeechSynthesizer; $s.Speak('${escaped}')"`,
+        { timeout: 30000 }
+      );
+    } else {
+      execSync(`say "${escaped.replace(/'/g, "\\'")}"`);  
+    }
   } catch (err) {
     console.error('Failed to speak message:', err);
   }
