@@ -84,6 +84,7 @@ export async function notifyAll(title: string, message: string): Promise<void> {
 
 /**
  * Play an alert sound repeatedly to grab attention (cross-platform)
+ * Play an alert sound repeatedly to grab attention (cross-platform)
  */
 export function playAlertSound(times: number = 5): void {
   try {
@@ -105,6 +106,7 @@ export function playAlertSound(times: number = 5): void {
 }
 
 /**
+ * Say a message using text-to-speech (cross-platform)
  * Say a message using text-to-speech (cross-platform)
  */
 export function speakMessage(message: string): void {
