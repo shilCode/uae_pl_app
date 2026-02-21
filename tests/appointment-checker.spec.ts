@@ -172,6 +172,19 @@ async function waitForManualCaptcha(page: Page): Promise<void> {
 // Step 2: Solve CAPTCHA (auto → manual fallback + timeout)
 // ─────────────────────────────────────────────────────
 async function solveCaptchaStep(page: Page): Promise<void> {
+  const solveLogic = async () => {
+    const autoSolved = await autoSolveCaptcha(page);
+    if (!autoSolved) {
+      await waitForManualCaptcha(page);
+    }
+  };
+
+  // If timeout is 0 or not set, skip the timeout entirely
+  if (CAPTCHA_TIMEOUT_MS <= 0) {
+    await solveLogic();
+    return;
+  }
+
   const timeoutPromise = new Promise<never>((_, reject) =>
     setTimeout(
       () =>
@@ -185,15 +198,7 @@ async function solveCaptchaStep(page: Page): Promise<void> {
   );
 
   // Race the actual solve logic against the timeout
-  await Promise.race([
-    (async () => {
-      const autoSolved = await autoSolveCaptcha(page);
-      if (!autoSolved) {
-        await waitForManualCaptcha(page);
-      }
-    })(),
-    timeoutPromise,
-  ]);
+  await Promise.race([solveLogic(), timeoutPromise]);
 }
 
 // ─────────────────────────────────────────────────────
