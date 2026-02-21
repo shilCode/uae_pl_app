@@ -9,19 +9,28 @@ const TELEGRAM_CHAT_ID = process.env.TELEGRAM_CHAT_ID || "";
  */
 export function sendDesktopNotification(title: string, message: string): void {
   try {
-    const escapedTitle = title.replace(/'/g, "''");
-    const escapedMessage = message.replace(/'/g, "''");
+    // Strip emojis and special unicode for PowerShell compatibility
+    const sanitize = (s: string) =>
+      s.replace(/[\u{1F600}-\u{1F9FF}\u{2600}-\u{2B55}\u{1F300}-\u{1F5FF}\u{1F680}-\u{1F6FF}\u{1FA00}-\u{1FA6F}\u{1FA70}-\u{1FAFF}\u{FE00}-\u{FE0F}\u{200D}\u{20E3}\u{E0020}-\u{E007F}]/gu, '')
+       .replace(/[\r\n]+/g, ' ')  // Replace newlines with spaces
+       .replace(/'/g, "''")       // Escape single quotes for PowerShell
+       .trim();
+
+    const escapedTitle = sanitize(title);
+    const escapedMessage = sanitize(message);
     if (process.platform === "win32") {
       execSync(
         `powershell -Command "[System.Reflection.Assembly]::LoadWithPartialName('System.Windows.Forms') | Out-Null; $notify = New-Object System.Windows.Forms.NotifyIcon; $notify.Icon = [System.Drawing.SystemIcons]::Information; $notify.Visible = $true; $notify.ShowBalloonTip(5000, '${escapedTitle}', '${escapedMessage}', 'Info'); Start-Sleep -Seconds 2; $notify.Dispose()"`,
         { timeout: 10000 },
       );
     } else {
+      const macTitle = title.replace(/"/g, '\\"');
+      const macMessage = message.replace(/"/g, '\\"');
       execSync(
-        `osascript -e 'display notification "${escapedMessage}" with title "${escapedTitle}" sound name "Glass"'`,
+        `osascript -e 'display notification "${macMessage}" with title "${macTitle}" sound name "Glass"'`,
       );
     }
-    console.log(`🔔 Notification sent: ${title} - ${message}`);
+    console.log(`Notification sent: ${title}`);
   } catch (err) {
     console.error("Failed to send notification:", err);
   }
@@ -113,14 +122,16 @@ export function speakMessage(message: string): void {
   try {
     const escaped = message.replace(/'/g, "''");
     if (process.platform === "win32") {
+      // Use try/catch inside PowerShell to handle missing audio device gracefully
       execSync(
-        `powershell -Command "Add-Type -AssemblyName System.Speech; $s = New-Object System.Speech.Synthesis.SpeechSynthesizer; $s.Speak('${escaped}')"`,
+        `powershell -Command "try { Add-Type -AssemblyName System.Speech; $s = New-Object System.Speech.Synthesis.SpeechSynthesizer; $s.Speak('${escaped}') } catch { Write-Host 'Speech unavailable' }"`,
         { timeout: 30000 },
       );
     } else {
-      execSync(`say "${escaped.replace(/'/g, "\\'")}"`);
+      execSync(`say "${escaped.replace(/'/g, "\\'")}"`)
     }
   } catch (err) {
-    console.error("Failed to speak message:", err);
+    // Silently ignore speech errors (e.g. no audio device on server)
+    console.warn("Speech unavailable:", (err as Error).message?.substring(0, 100) || err);
   }
 }

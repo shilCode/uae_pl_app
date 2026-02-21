@@ -300,16 +300,17 @@ async function checkForAppointments(page: Page): Promise<{
   }
 
   if (terminDropdownVisible || dalekButtonVisible) {
-    // Try to get the Termin options
+    // Try to get the Termin options by clicking the dropdown
     let terminOptions = "";
+    let optionCount = 0;
     try {
       const terminDropdown = page.locator("mat-select").nth(3);
       await terminDropdown.click();
-      await sleep(500);
+      await sleep(1000);
       const options = page.getByRole("option");
-      const count = await options.count();
+      optionCount = await options.count();
       const optionTexts: string[] = [];
-      for (let i = 0; i < count; i++) {
+      for (let i = 0; i < optionCount; i++) {
         optionTexts.push((await options.nth(i).textContent()) || "");
       }
       terminOptions = optionTexts.join(", ");
@@ -317,12 +318,23 @@ async function checkForAppointments(page: Page): Promise<{
       await page.keyboard.press("Escape");
     } catch {
       terminOptions = "(could not read options)";
+      optionCount = 0;
     }
 
-    return {
-      available: true,
-      message: `🎉 APPOINTMENTS FOUND! Available dates: ${terminOptions}`,
-    };
+    // Only report available if the dropdown actually has selectable date options
+    if (optionCount > 0 && terminOptions.trim().length > 0) {
+      return {
+        available: true,
+        message: `APPOINTMENTS FOUND! Available dates: ${terminOptions}`,
+      };
+    } else {
+      // Dropdown is visible but empty — no actual appointments
+      logWarn("Termin dropdown is visible but has no selectable options");
+      return {
+        available: false,
+        message: "No appointments available — Termin dropdown is empty (no dates to select)",
+      };
+    }
   }
 
   // Fallback: take screenshot and report
