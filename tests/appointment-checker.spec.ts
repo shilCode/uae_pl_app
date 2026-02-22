@@ -357,8 +357,11 @@ async function alertAppointmentFound(
   logSuccess(`Page URL: ${page.url()}`);
   logSeparator();
 
-  // Take a screenshot
-  const screenshotPath = `screenshots/appointment-found-${Date.now()}.png`;
+  // Take a screenshot in a dedicated folder (never overwritten)
+  const appointmentDir = path.resolve("screenshots/appointments-found");
+  if (!fs.existsSync(appointmentDir)) fs.mkdirSync(appointmentDir, { recursive: true });
+  const timestamp = new Date().toISOString().replace(/[:.]/g, "-");
+  const screenshotPath = path.join(appointmentDir, `appointment-${timestamp}.png`);
   await page.screenshot({ path: screenshotPath, fullPage: true });
   logInfo(`Screenshot saved: ${screenshotPath}`);
 
