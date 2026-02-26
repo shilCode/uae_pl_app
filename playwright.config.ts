@@ -20,7 +20,7 @@ export default defineConfig({
     viewport: { width: 1280, height: 720 },
     actionTimeout: 15000,
     navigationTimeout: 30000,
-    trace: 'retain-on-failure',
+    trace: 'off',
     screenshot: 'only-on-failure',
     video: 'retain-on-failure',
     // Slow down actions so the site doesn't flag automation
