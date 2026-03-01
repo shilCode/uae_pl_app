@@ -215,9 +215,26 @@ async function fillBookingForm(page: Page): Promise<void> {
   const serviceDropdown = page.locator("mat-select").first();
   await serviceDropdown.click();
   await sleep(500);
-  await page.getByRole("option", { name: SERVICE_TYPE, exact: true }).click();
-  await sleep(500);
-  logSuccess(`Selected service: ${SERVICE_TYPE}`);
+
+  // Log all available service options
+  const serviceOptions = page.getByRole("option");
+  const serviceCount = await serviceOptions.count();
+  const serviceTexts: string[] = [];
+  for (let i = 0; i < serviceCount; i++) {
+    serviceTexts.push((await serviceOptions.nth(i).textContent())?.trim() || "");
+  }
+  logInfo(`  Available service types: ${serviceTexts.map(s => `"${s}"`).join(", ")}`);
+
+  const targetOption = page.getByRole("option", { name: SERVICE_TYPE, exact: true });
+  if (await targetOption.isVisible().catch(() => false)) {
+    await targetOption.click();
+    await sleep(500);
+    logSuccess(`Selected service: ${SERVICE_TYPE}`);
+  } else {
+    logWarn(`Service type "${SERVICE_TYPE}" not found! Selecting first available: "${serviceTexts[0]}"`);
+    await serviceOptions.first().click();
+    await sleep(500);
+  }
 
   // ── Select "Lokalizacja" (Location) ──
   const locationDropdown = page.locator("mat-select").nth(1);
