@@ -63,8 +63,23 @@ fi
 
 FOUND=0
 TOTAL_MATCHING_LINES=0
+FOUND_APPOINTMENT=0
+TOTAL_APPOINTMENT_LINES=0
+
+echo "Scanning for:"
+echo "  1) Available service types with more than 3 options"
+echo "  2) APPOINTMENT SLOT FOUND!"
 
 for file in "${FILES[@]}"; do
+  while IFS= read -r line; do
+    line_number="${line%%:*}"
+    content="${line#*:}"
+
+    FOUND_APPOINTMENT=1
+    TOTAL_APPOINTMENT_LINES=$((TOTAL_APPOINTMENT_LINES + 1))
+    printf "%s:%s | appointment_found | %s\n" "$file" "$line_number" "$content"
+  done < <(grep -n "APPOINTMENT SLOT FOUND!" "$file" || true)
+
   while IFS= read -r line; do
     line_number="${line%%:*}"
     content="${line#*:}"
@@ -81,9 +96,11 @@ for file in "${FILES[@]}"; do
   done < <(grep -n "Available service types:" "$file" || true)
 done
 
-if [ "$FOUND" -eq 0 ]; then
+if [ "$FOUND" -eq 0 ] && [ "$FOUND_APPOINTMENT" -eq 0 ]; then
   echo "No lines found with more than 3 available service types."
+  echo "No lines found with APPOINTMENT SLOT FOUND!"
   exit 0
 fi
 
 echo "Found $TOTAL_MATCHING_LINES line(s) with more than 3 available service types."
+echo "Found $TOTAL_APPOINTMENT_LINES line(s) with APPOINTMENT SLOT FOUND!"
