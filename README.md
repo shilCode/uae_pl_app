@@ -117,6 +117,9 @@ npm run captcha:debug
 
 # Open the last test report
 npm run report
+
+# Run headed mode on Linux without a desktop session
+npm run check:xvfb
 ```
 
 ---
@@ -207,3 +210,7 @@ All activity is logged to the `logs/` folder. Each run creates a new log file li
 
 **Want to check more often**
 → Decrease `POLL_INTERVAL_MS` (e.g., `60000` for every minute). Don't go lower than 30000 or the website might block you.
+
+**"Looks like you launched a headed browser without having a XServer running"**
+→ Use headless mode (default now): `npm run check`
+→ Or run headed with virtual display on Linux: `npm run check:xvfb`
