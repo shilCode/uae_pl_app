@@ -35,8 +35,8 @@ export default defineConfig({
       testMatch: 'appointment-checker.spec.ts',
       use: {
         ...devices['Desktop Chrome'],
-        // Use real Chrome for less detection
-        channel: 'chrome',
+        // Use real Chrome locally; in container, fall back to bundled Chromium
+        ...(process.env.CONTAINER ? {} : { channel: 'chrome' }),
       },
     },
   ],

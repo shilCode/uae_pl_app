@@ -14,6 +14,7 @@ import {
   logSeparator,
 } from "../src/logger";
 import { solveCaptcha } from "../src/captcha-solver";
+import { initMailer } from "../src/mail";
 import Tesseract from "tesseract.js";
 import sharp from "sharp";
 import path from "path";
@@ -382,10 +383,11 @@ async function alertAppointmentFound(
   await page.screenshot({ path: screenshotPath, fullPage: true });
   logInfo(`Screenshot saved: ${screenshotPath}`);
 
-  // Send notifications (desktop + Telegram)
+  // Send notifications (desktop + email with screenshot)
   await notifyAll(
     "🎉 APPOINTMENT AVAILABLE!",
     `An appointment slot is available on the Polish consulate website!\n\n${message}\n\nGo book it NOW!`,
+    screenshotPath,
   );
 
   // Speak the alert
@@ -489,6 +491,9 @@ test("Polish Consulate Appointment Checker", async ({ browser }) => {
   logInfo(`CAPTCHA timeout: ${CAPTCHA_TIMEOUT_MS / 1000}s`);
   logInfo("Browser will close between checks to save resources");
   logSeparator();
+
+  // Initialise the email transport (Ethereal auto-account or custom SMTP)
+  await initMailer();
 
   await pollForAppointments(browser);
 });

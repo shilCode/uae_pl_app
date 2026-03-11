@@ -1,0 +1,31 @@
+services:
+  # ── MailPit: fake SMTP server with web UI ──
+  mailpit:
+    image: axllent/mailpit
+    container_name: mailpit
+    restart: unless-stopped
+    ports:
+      - "8025:8025"   # Web UI
+    # SMTP port 1025 exposed only within the compose network (no host mapping needed)
+    expose:
+      - "1025"
+
+  # ── Appointment Checker ──
+  checker:
+    build: .
+    container_name: checker
+    restart: unless-stopped
+    depends_on:
+      - mailpit
+    env_file: .env
+    environment:
+      # Override SMTP_HOST to point at the mailpit container
+      SMTP_HOST: mailpit
+      SMTP_PORT: "1025"
+      # Playwright must run headless in container
+      HEADED: "false"
+    volumes:
+      # Persist logs, screenshots, and reports on the host
+      - ./logs:/app/logs
+      - ./screenshots:/app/screenshots
+      - ./playwright-report:/app/playwright-report
