@@ -202,6 +202,9 @@ async function solveCaptchaStep(page: Page): Promise<void> {
   await Promise.race([solveLogic(), timeoutPromise]);
 }
 
+// Track known service types across attempts
+const knownServiceTypes = new Set<string>();
+
 // ─────────────────────────────────────────────────────
 // Step 3: Fill out the booking form
 // ─────────────────────────────────────────────────────
@@ -225,6 +228,18 @@ async function fillBookingForm(page: Page): Promise<void> {
     serviceTexts.push((await serviceOptions.nth(i).textContent())?.trim() || "");
   }
   logInfo(`  Available service types: ${serviceTexts.map(s => `"${s}"`).join(", ")}`);
+
+  // Detect new service types and notify
+  const newTypes = serviceTexts.filter(s => s && !knownServiceTypes.has(s));
+  if (knownServiceTypes.size > 0 && newTypes.length > 0) {
+    const msg = `New service types detected: ${newTypes.map(s => `"${s}"`).join(", ")}`;
+    logSuccess(msg);
+    await notifyAll(
+      "🆕 New Service Types Available!",
+      `${msg}\n\nAll current types: ${serviceTexts.map(s => `"${s}"`).join(", ")}`,
+    );
+  }
+  for (const s of serviceTexts) { if (s) knownServiceTypes.add(s); }
 
   const targetOption = page.getByRole("option", { name: SERVICE_TYPE, exact: true });
   if (await targetOption.isVisible().catch(() => false)) {
